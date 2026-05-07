@@ -1,0 +1,20 @@
+{
+  "name": "tech-salary-bff",
+  "version": "1.0.0",
+  "description": "Backend-for-Frontend (BFF) for Tech Salary Transparency Platform",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.8",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "express-rate-limit": "^7.2.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}

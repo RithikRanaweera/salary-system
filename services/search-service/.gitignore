@@ -1,0 +1,43 @@
+# ============================================================
+# .gitignore for Tech Salary Transparency Platform
+# ============================================================
+
+# --- Java / Maven ---
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# --- IDE ---
+.idea/
+*.iml
+*.iws
+.vscode/
+*.swp
+*.swo
+.settings/
+.project
+.classpath
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Environment ---
+.env
+*.env.local
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Build ---
+build/
+dist/
+out/

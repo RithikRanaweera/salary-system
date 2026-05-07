@@ -1,0 +1,81 @@
+# ============================================================
+# MySQL Deployment
+# Single-replica MySQL 8.0 in the data namespace
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: data
+  labels:
+    app: mysql
+    project: techsalary
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  strategy:
+    type: Recreate          # MySQL requires Recreate (not RollingUpdate)
+  template:
+    metadata:
+      labels:
+        app: mysql
+        project: techsalary
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          ports:
+            - containerPort: 3306
+              name: mysql
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: mysql-root-password
+          volumeMounts:
+            # Persistent data storage
+            - name: mysql-data
+              mountPath: /var/lib/mysql
+            # Init scripts (executed on first startup)
+            - name: mysql-initdb
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          livenessProbe:
+            exec:
+              command:
+                - mysqladmin
+                - ping
+                - -h
+                - localhost
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - mysqladmin
+                - ping
+                - -h
+                - localhost
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+      volumes:
+        # PVC for persistent MySQL data
+        - name: mysql-data
+          persistentVolumeClaim:
+            claimName: mysql-pvc
+        # ConfigMap with init SQL scripts
+        - name: mysql-initdb
+          configMap:
+            name: mysql-initdb

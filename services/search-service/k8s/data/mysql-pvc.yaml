@@ -1,0 +1,20 @@
+# ============================================================
+# MySQL Persistent Volume Claim
+# Provides persistent storage for MySQL data
+# ============================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+  namespace: data
+  labels:
+    app: mysql
+    project: techsalary
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  # Use default storage class (Azure: managed-premium or default)
+  # storageClassName: default

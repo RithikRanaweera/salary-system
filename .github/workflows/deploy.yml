@@ -1,0 +1,180 @@
+name: Build and Deploy to AKS
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOCKER_USERNAME: rithikranaweera
+  AKS_CLUSTER: salary-cluster
+  AKS_RESOURCE_GROUP: salary-rg
+
+jobs:
+  # ── Job 1: Detect changed services ──────────────────────────
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      salary:   ${{ steps.filter.outputs.salary }}
+      identity: ${{ steps.filter.outputs.identity }}
+      vote:     ${{ steps.filter.outputs.vote }}
+      search:   ${{ steps.filter.outputs.search }}
+      stats:    ${{ steps.filter.outputs.stats }}
+      bff:      ${{ steps.filter.outputs.bff }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            salary:
+              - 'services/salary-service/**'
+            identity:
+              - 'services/identity-service/**'
+            vote:
+              - 'services/vote-service/**'
+            search:
+              - 'services/search-service/**'
+            stats:
+              - 'services/stats-service/**'
+            bff:
+              - 'bff/**'
+            frontend:
+              - 'frontend/**'
+
+  # ── Job 2: Build & Push changed images ──────────────────────
+  build:
+    runs-on: ubuntu-latest
+    needs: changes
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & Push salary-service
+        if: needs.changes.outputs.salary == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/salary-service
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/salary-service:latest
+            ${{ env.DOCKER_USERNAME }}/salary-service:${{ github.sha }}
+
+      - name: Build & Push identity-service
+        if: needs.changes.outputs.identity == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/identity-service
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/identity-service:latest
+            ${{ env.DOCKER_USERNAME }}/identity-service:${{ github.sha }}
+
+      - name: Build & Push vote-service
+        if: needs.changes.outputs.vote == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/vote-service
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/vote-service:latest
+            ${{ env.DOCKER_USERNAME }}/vote-service:${{ github.sha }}
+
+      - name: Build & Push search-service
+        if: needs.changes.outputs.search == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/search-service
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/search-service:latest
+            ${{ env.DOCKER_USERNAME }}/search-service:${{ github.sha }}
+
+      - name: Build & Push stats-service
+        if: needs.changes.outputs.stats == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/stats-service
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/stats-service:latest
+            ${{ env.DOCKER_USERNAME }}/stats-service:${{ github.sha }}
+
+      - name: Build & Push bff
+        if: needs.changes.outputs.bff == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./bff
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/bff:latest
+            ${{ env.DOCKER_USERNAME }}/bff:${{ github.sha }}
+
+      - name: Build & Push frontend
+        if: needs.changes.outputs.frontend == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/frontend:latest
+            ${{ env.DOCKER_USERNAME }}/frontend:${{ github.sha }}
+
+  # ── Job 3: Deploy to AKS ────────────────────────────────────
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [changes, build]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Apply K8s manifests
+        run: |
+          kubectl apply -f k8s/00-namespaces.yaml
+          kubectl apply -f k8s/01-configmap.yaml
+          kubectl apply -f k8s/02-secret.yaml
+          kubectl apply -f k8s/03-postgres-secret.yaml
+          kubectl apply -f k8s/data/
+          kubectl apply -f k8s/app/
+          kubectl apply -f k8s/ingress.yaml
+
+      - name: Restart changed services
+        run: |
+          if [ "${{ needs.changes.outputs.salary }}"   == "true" ]; then kubectl rollout restart deployment/salary-service   -n app; fi
+          if [ "${{ needs.changes.outputs.identity }}" == "true" ]; then kubectl rollout restart deployment/identity-service -n app; fi
+          if [ "${{ needs.changes.outputs.vote }}"     == "true" ]; then kubectl rollout restart deployment/vote-service     -n app; fi
+          if [ "${{ needs.changes.outputs.search }}"   == "true" ]; then kubectl rollout restart deployment/search-service   -n app; fi
+          if [ "${{ needs.changes.outputs.stats }}"    == "true" ]; then kubectl rollout restart deployment/stats-service    -n app; fi
+          if [ "${{ needs.changes.outputs.bff }}"      == "true" ]; then kubectl rollout restart deployment/bff              -n app; fi
+          if [ "${{ needs.changes.outputs.frontend }}" == "true" ]; then kubectl rollout restart deployment/frontend         -n app; fi
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment -n app --timeout=120s
+          echo ""
+          echo "✅ Deployment complete!"
+          echo ""
+          kubectl get pods -n app
+          kubectl get pods -n data
+          kubectl get ingress -n app

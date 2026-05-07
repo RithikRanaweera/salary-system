@@ -1,0 +1,33 @@
+# ============================================================
+# MySQL ConfigMap
+# Contains initialization SQL scripts
+# These are mounted into /docker-entrypoint-initdb.d/ and
+# executed automatically when MySQL starts for the first time.
+# ============================================================
+#
+# NOTE: For large SQL files, create this ConfigMap from files:
+#   kubectl create configmap mysql-initdb \
+#     --from-file=01-init-schema.sql=../../database/init-schema.sql \
+#     --from-file=02-seed-data.sql=../../database/seed-data.sql \
+#     -n data
+#
+# The YAML below is a placeholder. Use the kubectl command above
+# to create the actual ConfigMap from the SQL files.
+# ============================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-initdb
+  namespace: data
+  labels:
+    app: mysql
+    project: techsalary
+data:
+  # Placeholder - use kubectl create configmap from files instead
+  # See NOTE above for the correct command
+  00-create-dbs.sql: |
+    -- Create databases (minimal bootstrap)
+    -- Full schema is loaded from init-schema.sql via kubectl configmap
+    CREATE DATABASE IF NOT EXISTS identity_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    CREATE DATABASE IF NOT EXISTS salary_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    CREATE DATABASE IF NOT EXISTS community_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

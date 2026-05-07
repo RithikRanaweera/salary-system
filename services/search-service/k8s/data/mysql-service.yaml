@@ -1,0 +1,22 @@
+# ============================================================
+# MySQL Service
+# ClusterIP service exposing MySQL within the cluster
+# Other services connect via: mysql.data.svc.cluster.local:3306
+# ============================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: data
+  labels:
+    app: mysql
+    project: techsalary
+spec:
+  type: ClusterIP
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
+      protocol: TCP
+      name: mysql

@@ -1,0 +1,19 @@
+# ============================================================
+# Kubernetes Namespaces
+# Creates the 'app' and 'data' namespaces for the platform
+# ============================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: app
+  labels:
+    project: techsalary
+    tier: application
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: data
+  labels:
+    project: techsalary
+    tier: database

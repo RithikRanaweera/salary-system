@@ -1,0 +1,243 @@
+version: "3.9"
+
+services:
+  # This file for initial dev testing
+  # ── PostgreSQL ──────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: techsalary-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       techsalary
+      POSTGRES_USER:     techsalary
+      POSTGRES_PASSWORD: techsalary_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U techsalary -d techsalary"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - techsalary-net
+
+  # ── Salary Service ─────────────────────────────────────────
+  salary-service:
+    build:
+      context: ./salary-service
+      dockerfile: Dockerfile
+    container_name: techsalary-salary-service
+    restart: unless-stopped
+    ports:
+      - "7082:8082"
+    environment:
+      DB_URL:                  jdbc:postgresql://postgres:5432/techsalary
+      DB_USER:                 techsalary
+      DB_PASSWORD:             techsalary_pass
+      INTERNAL_SERVICE_TOKEN:  internal-secret-token-change-in-prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - techsalary-net
+
+  # ── Stats Service (Express.js) ─────────────────────────────
+  stats-service:
+    build:
+      context: ./stats-service
+      dockerfile: Dockerfile
+    container_name: techsalary-stats-service
+    restart: unless-stopped
+    ports:
+      - "7085:8085"
+    environment:
+      PORT:        8085
+      DB_HOST:     postgres
+      DB_PORT:     5432
+      DB_NAME:     techsalary
+      DB_USER:     techsalary
+      DB_PASSWORD: techsalary_pass
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8085/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - techsalary-net
+
+  # ── Search Service (Express.js) ────────────────────────────
+  search-service:
+    build:
+      context: ./search-service
+      dockerfile: Dockerfile
+    container_name: techsalary-search-service
+    restart: unless-stopped
+    ports:
+      - "7084:8084"
+    environment:
+      PORT:        8084
+      DB_HOST:     postgres
+      DB_PORT:     5432
+      DB_NAME:     techsalary
+      DB_USER:     techsalary
+      DB_PASSWORD: techsalary_pass
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - techsalary-net
+
+  # ── Identity Service (Spring Boot) ──────────────────────────
+  identity-service:
+    build:
+      context: ./identity-service
+      dockerfile: Dockerfile
+    container_name: techsalary-identity-service
+    restart: unless-stopped
+    ports:
+      - "7081:8081"
+    environment:
+      DB_HOST:     postgres
+      DB_PORT:     5432
+      DB_USER:     techsalary
+      DB_PASSWORD: techsalary_pass
+      JWT_SECRET:  mysecretkey12345678901234567890ab
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/auth/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - techsalary-net
+
+  # ── Vote Service (Spring Boot) ─────────────────────────────
+  vote-service:
+    build:
+      context: ./vote-service
+      dockerfile: Dockerfile
+    container_name: techsalary-vote-service
+    restart: unless-stopped
+    ports:
+      - "7083:8083"
+    environment:
+      DB_HOST:               postgres
+      DB_PORT:               5432
+      DB_USER:               techsalary
+      DB_PASSWORD:           techsalary_pass
+      IDENTITY_SERVICE_URL:  http://identity-service:8081
+      SALARY_SERVICE_URL:    http://salary-service:8082
+    depends_on:
+      postgres:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+      salary-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/votes/health || wget -qO- http://localhost:8083/ || exit 0"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    networks:
+      - techsalary-net
+
+  # ── BFF (Express.js) ───────────────────────────────────────
+  bff:
+    build:
+      context: ../bff
+      dockerfile: Dockerfile
+    container_name: techsalary-bff
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT:                  3000
+      IDENTITY_SERVICE_URL:  http://identity-service:8081
+      SALARY_SERVICE_URL:    http://salary-service:8082
+      VOTE_SERVICE_URL:      http://vote-service:8083
+      SEARCH_SERVICE_URL:    http://search-service:8084
+      STATS_SERVICE_URL:     http://stats-service:8085
+      JWT_SECRET:            mysecretkey12345678901234567890ab
+    depends_on:
+      - identity-service
+      - salary-service
+      - vote-service
+      - search-service
+      - stats-service
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - techsalary-net
+
+  # ── Frontend (React + Nginx) ───────────────────────────────
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: techsalary-frontend
+    restart: unless-stopped
+    ports:
+      - "8088:80"
+    depends_on:
+      bff:
+        condition: service_healthy
+    networks:
+      - techsalary-net
+
+  # ── pgAdmin ────────────────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: techsalary-pgadmin
+    restart: unless-stopped
+    ports:
+      - "5051:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL:    admin@techsalary.lk
+      PGADMIN_DEFAULT_PASSWORD: admin
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - techsalary-net
+
+volumes:
+  postgres_data:
+    name: techsalary-postgres-data
+  pgadmin_data:
+    name: techsalary-pgadmin-data
+
+networks:
+  techsalary-net:
+    name: techsalary-network
+    driver: bridge

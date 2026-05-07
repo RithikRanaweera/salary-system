@@ -1,0 +1,11 @@
+.env
+target/
+*.class
+*.jar
+*.log
+.idea/
+*.iml
+.DS_Store
+/create-docker-setup.sh
+/create-salary-service.sh
+/Makefile

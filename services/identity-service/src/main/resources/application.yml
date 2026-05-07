@@ -1,0 +1,24 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: identity-service
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/techsalary
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update        # auto-creates tables from your Java classes
+    properties:
+      hibernate:
+        default_schema: identity   # uses the 'identity' schema in PostgreSQL
+    show-sql: true
+
+jwt:
+  secret: ${JWT_SECRET:mysecretkey12345678901234567890ab}
+  expiration: 86400000   # 24 hours in milliseconds

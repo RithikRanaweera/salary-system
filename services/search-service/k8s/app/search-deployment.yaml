@@ -1,0 +1,94 @@
+# ============================================================
+# Search Service Deployment
+# Runs in the app namespace, connects to MySQL in data namespace
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-service
+  namespace: app
+  labels:
+    app: search-service
+    project: techsalary
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: search-service
+  template:
+    metadata:
+      labels:
+        app: search-service
+        project: techsalary
+    spec:
+      containers:
+        - name: search-service
+          image: techsalary/search-service:1.0.0
+          ports:
+            - containerPort: 8084
+              name: http
+          env:
+            # Server configuration
+            - name: SERVER_PORT
+              value: "8084"
+            # Database configuration (cross-namespace access)
+            - name: DB_URL
+              value: "jdbc:mysql://mysql.data.svc.cluster.local:3306/salary_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+            - name: DB_USERNAME
+              value: "root"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret-ref
+                  key: mysql-root-password
+            # Application configuration
+            - name: DEFAULT_CURRENCY
+              value: "LKR"
+            - name: VOTE_THRESHOLD
+              value: "5"
+            - name: DEFAULT_PAGE_SIZE
+              value: "20"
+            - name: JPA_SHOW_SQL
+              value: "false"
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8084
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8084
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 3
+---
+# ============================================================
+# Secret reference for MySQL password in app namespace
+# Copy the password from data namespace or use external secrets
+# ============================================================
+# Create with:
+#   kubectl create secret generic mysql-secret-ref \
+#     --from-literal=mysql-root-password=techsalary2025 \
+#     -n app
+# ============================================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-secret-ref
+  namespace: app
+  labels:
+    app: search-service
+    project: techsalary
+type: Opaque
+data:
+  mysql-root-password: dGVjaHNhbGFyeTIwMjU=

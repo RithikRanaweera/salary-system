@@ -1,0 +1,35 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: vote-service
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/techsalary
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        default_schema: community
+    show-sql: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# URLs of other services
+services:
+  identity-url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+  salary-url: ${SALARY_SERVICE_URL:http://localhost:8082}
+
+# Voting configuration
+voting:
+  approval-threshold: 1
