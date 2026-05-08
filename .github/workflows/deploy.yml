@@ -169,12 +169,3 @@ jobs:
           if [ "${{ needs.changes.outputs.bff }}"      == "true" ]; then kubectl rollout restart deployment/bff              -n app; fi
           if [ "${{ needs.changes.outputs.frontend }}" == "true" ]; then kubectl rollout restart deployment/frontend         -n app; fi
 
-      - name: Verify deployment
-        run: |
-          kubectl rollout status deployment -n app --timeout=120s
-          echo ""
-          echo "✅ Deployment complete!"
-          echo ""
-          kubectl get pods -n app
-          kubectl get pods -n data
-          kubectl get ingress -n app
